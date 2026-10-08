@@ -55,3 +55,54 @@ Measurements were taken while services were idle.
 - Idempotent Cassandra writes
 
 These tests have not yet been implemented.
+
+
+## Phase 3 — Python Producers
+
+### Functional Tests
+
+| Test | Result |
+|---|---|
+| Order Producer | PASS |
+| Payment Producer | PASS |
+| Inventory Producer | PASS |
+| JSON serialization | PASS |
+| Kafka Key = order_id | PASS |
+| Kafka delivery confirmation | PASS |
+| Kafka console consumption | PASS |
+
+### Anomaly Scenarios
+
+| Scenario | Kafka Topic | Result |
+|---|---|---|
+| Duplicate event ORD-3001 | orders | PASS |
+| Late event ORD-3004 | orders | PASS |
+| Out-of-order payment ORD-3003 | payments + orders | PASS |
+| Missing customer_id ORD-3005 | orders | PASS |
+| Malformed JSON ORD-3006 | orders | PASS |
+
+### Observations
+
+- Duplicate messages were accepted by Kafka with identical event_id.
+- Event timestamps can differ from publication time.
+- Payment was published before its corresponding order for ORD-3003.
+- Invalid JSON and missing required fields were accepted by Kafka.
+- Cross-topic ordering is not guaranteed.
+- Kafka console consumers successfully retrieved the test messages.
+
+### Known Limitations
+
+- Kafka uses a single broker without replication-based fault tolerance.
+- Event producers currently use simulated data.
+- Re-running producers creates additional events.
+- Some Kafka connection attempts used IPv6 localhost before successfully connecting over IPv4.
+- Anomaly detection and correction are not implemented yet.
+
+### Planned Phase 4 Validation
+
+- JSON schema validation
+- Dead Letter Topic routing
+- Deduplication by event_id
+- Event-time and watermark behavior
+- Checkpoint and recovery tests
+

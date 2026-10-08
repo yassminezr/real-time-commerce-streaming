@@ -77,36 +77,90 @@ Stop infrastructure:
 docker compose --profile streaming --profile storage stop
 ```
 
+
 ## Current Progress
 
 ### Completed
 
+**Phase 1 — Architecture**
+- Event-driven architecture and event contracts
+- Kafka topic and partitioning design
+- Cassandra data model design
+
+**Phase 2 — Infrastructure**
 - Docker Compose infrastructure
-- Single-broker Kafka in KRaft mode
+- Kafka broker in KRaft mode
 - Four Kafka topics
 - Spark Master and Worker startup
-- Single-node Cassandra startup
-- Kafka console producer/consumer test
+- Cassandra single-node startup
+- Kafka producer/consumer validation
 
-### Planned
+**Phase 3 — Python Event Producers**
+- Order producer (`order_created`)
+- Payment producer (`payment_authorized`, `payment_failed`)
+- Inventory producer (`inventory_reserved`, `inventory_rejected`)
+- Shared JSON event envelope
+- Kafka Key based on `order_id`
+- Kafka delivery acknowledgments
+- Duplicate event simulation
+- Late event simulation
+- Out-of-order event simulation
+- Invalid event simulation
 
-- Python event producers
-- JSON schema validation
-- Event-time and watermarking
+### Next — Phase 4
+
+Spark Structured Streaming:
+- Kafka ingestion
+- JSON parsing and validation
+- Dead Letter Topic
+- Event-time processing
+- Watermarking
 - Deduplication
-- Stream-stream joins
-- Order state reconstruction
-- Cassandra persistence
-- Checkpointing and reliability scenarios
+- Checkpointing
 
-## Infrastructure Limitations
+## Running the Python Producers
 
-The project runs locally using a single Kafka broker
-and a single Cassandra node.
+Activate the virtual environment on Windows PowerShell:
 
-It does not provide multi-node high availability.
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
 
-## Status
+Install Python dependencies:
 
-Phase 2: Infrastructure setup completed.
-Phase 3: Python event producers — next.
+```powershell
+python -m pip install -r requirements.txt
+```
+
+Start Kafka:
+
+```powershell
+docker compose up -d kafka
+```
+
+Run the producers:
+
+```powershell
+python .\src\producers\order_producer.py
+python .\src\producers\payment_producer.py
+python .\src\producers\inventory_producer.py
+```
+
+Generate anomaly scenarios:
+
+```powershell
+python .\src\producers\anomaly_producer.py
+```
+
+Preview sample events without publishing:
+
+```powershell
+python .\src\producers\preview_events.py
+```
+
+Each producer execution publishes additional Kafka messages.
+Avoid repeated runs when reproducing the initial test results.
+
+The current producers generate simulated business events.
+Spark processing and Cassandra persistence are not yet implemented.
+
