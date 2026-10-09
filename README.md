@@ -164,3 +164,19 @@ Avoid repeated runs when reproducing the initial test results.
 The current producers generate simulated business events.
 Spark processing and Cassandra persistence are not yet implemented.
 
+
+**Phase 4 — Spark Structured Streaming**
+- Kafka streaming ingestion from three topics
+- JSON parsing and event contract validation
+- Invalid event routing to dead-letter-events
+- Event-time window aggregation and watermarking
+- Stateful deduplication using event_id
+- Persistent checkpoint and recovery validation
+
+### Next — Phase 5
+
+Business event correlation:
+- Orders and payments stream-stream join
+- Inventory event correlation
+- Order state reconstruction
+- Streaming business metrics

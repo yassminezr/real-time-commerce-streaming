@@ -29,3 +29,5 @@ data/
 .DS_Store
 Thumbs.db
 '@ | Set-Content -Path ".gitignore" -Encoding UTF8
+
+src/streaming/.checkpoint_test_event.json

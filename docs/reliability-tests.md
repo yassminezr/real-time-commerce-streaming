@@ -106,3 +106,43 @@ These tests have not yet been implemented.
 - Event-time and watermark behavior
 - Checkpoint and recovery tests
 
+
+
+## Phase 4 — Spark Structured Streaming
+
+### Functional validation
+
+- Spark-Kafka connector: PASS
+- Streaming ingestion from three topics: PASS
+- JSON parsing and validation: PASS
+- Dead Letter Topic routing: PASS
+- Event-time window aggregation: PASS
+- Watermark configuration: PASS
+- Stateful deduplication by event_id: PASS
+
+### Checkpoint recovery test
+
+Test event:
+- order_id: ORD-4001
+- event_id: EVT-CHECKPOINT-4001
+
+Procedure:
+1. Publish the original event.
+2. Process it with Spark Structured Streaming.
+3. Stop and restart Spark.
+4. Publish the exact same event again.
+5. Resume using the existing checkpoint.
+
+Results:
+- Original event: Pass
+- Checkpoint persisted: Pass
+- Duplicate after restart: Pass 
+
+### Limitations
+
+- Local single-broker Kafka infrastructure.
+- Checkpoints persisted in a Docker named volume.
+- foreachBatch outputs are not automatically exactly-once.
+- A controlled restart does not prove recovery from all failure scenarios.
+- Watermark-based state retention limits deduplication guarantees.
+

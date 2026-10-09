@@ -74,7 +74,11 @@ services:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:7077:7077"
 
-    mem_limit: 640m
+    mem_limit: 1408m
+
+    volumes:
+      - ./src:/opt/spark/work-dir/project-src:ro
+      - spark_checkpoints:/opt/spark/checkpoints
 
     networks:
       - commerce-network
@@ -149,3 +153,4 @@ networks:
 volumes:
   kafka_data:
   cassandra_data:
+  spark_checkpoints:
