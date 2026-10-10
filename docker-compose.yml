@@ -54,10 +54,14 @@ services:
       - commerce-network
 
   # ==========================================
-  # APACHE SPARK - MASTER
+  # APACHE SPARK - CUSTOM MASTER
   # ==========================================
   spark-master:
-    image: apache/spark:4.0.4-java21-python3
+    build:
+      context: .
+      dockerfile: docker/spark/Dockerfile
+
+    image: rtc-spark:4.0.4
     container_name: rtc-spark-master
 
     profiles:

@@ -1,10 +1,16 @@
 
 $ErrorActionPreference = "Stop"
 
+# ============================================================
+# REAL-TIME COMMERCE — INTEGRATED STREAMING PIPELINE
+# Kafka -> Validation -> Deduplication -> Business -> Cassandra
+# ============================================================
+
 # Se placer a la racine du projet
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $ProjectRoot
 
+# Configuration Spark
 $SparkContainer = "rtc-spark-master"
 $SparkSubmit = "/opt/spark/bin/spark-submit"
 
@@ -15,6 +21,14 @@ $SparkOptions = @(
     "--packages",
     "org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.4"
 )
+
+$ScriptDirectory = (
+    "/opt/spark/work-dir/project-src/streaming/integrated"
+)
+
+# ============================================================
+# FONCTIONS
+# ============================================================
 
 function Check-ExitCode {
     param([string]$StepName)
@@ -27,55 +41,158 @@ function Check-ExitCode {
 function Run-SparkJob {
     param(
         [string]$Name,
-        [string]$ScriptPath
+        [string]$ScriptName
     )
 
+    $ScriptPath = "$ScriptDirectory/$ScriptName"
+
     Write-Host ""
-    Write-Host "=================================="
+    Write-Host "========================================"
     Write-Host " DEMARRAGE : $Name"
-    Write-Host "=================================="
+    Write-Host "========================================"
 
     & docker exec $SparkContainer $SparkSubmit `
         @SparkOptions $ScriptPath
 
     Check-ExitCode $Name
 
-    Write-Host "[OK] $Name"
+    Write-Host "[OK] $Name termine"
 }
 
-try {
-    Write-Host "=== COMMERCE STREAMING PIPELINE ==="
+function Wait-Cassandra {
+    Write-Host ""
+    Write-Host "Attente de Cassandra..."
 
-    # Demarrer Kafka
+    $CassandraReady = $false
+
+    # Maximum 150 secondes
+    for ($i = 1; $i -le 30; $i++) {
+
+        $status = & docker exec rtc-cassandra `
+            nodetool status 2>$null
+
+        if (
+            $LASTEXITCODE -eq 0 -and
+            ($status -match '(?m)^\s*UN\s+')
+        ) {
+            $CassandraReady = $true
+            break
+        }
+
+        Start-Sleep -Seconds 5
+    }
+
+    if (-not $CassandraReady) {
+        throw "Cassandra non disponible apres 150 secondes."
+    }
+
+    # Verifier egalement que CQL est disponible
+    $CqlReady = $false
+
+    for ($i = 1; $i -le 20; $i++) {
+
+        & docker exec rtc-cassandra cqlsh `
+            -e "DESCRIBE KEYSPACE commerce;" *> $null
+
+        if ($LASTEXITCODE -eq 0) {
+            $CqlReady = $true
+            break
+        }
+
+        Start-Sleep -Seconds 5
+    }
+
+    if (-not $CqlReady) {
+        throw "Le keyspace commerce est inaccessible."
+    }
+
+    Write-Host "[OK] Cassandra et keyspace commerce operationnels"
+}
+
+# ============================================================
+# PIPELINE PRINCIPAL
+# ============================================================
+
+try {
+
+    Write-Host ""
+    Write-Host "========================================"
+    Write-Host " REAL-TIME COMMERCE STREAMING PIPELINE"
+    Write-Host "========================================"
+
+    # --------------------------------------------------------
+    # 1. DEMARRAGE INFRASTRUCTURE
+    # --------------------------------------------------------
+
+    Write-Host ""
+    Write-Host "[1/7] Demarrage Kafka"
+
     & docker compose up -d kafka
     Check-ExitCode "Demarrage Kafka"
 
-    # Demarrer Spark
+    Write-Host ""
+    Write-Host "[2/7] Demarrage Spark"
+
     & docker compose --profile streaming up -d spark-master
     Check-ExitCode "Demarrage Spark"
 
-    # JOB 1
+    Write-Host ""
+    Write-Host "[3/7] Demarrage Cassandra"
+
+    & docker compose --profile storage up -d cassandra
+    Check-ExitCode "Demarrage Cassandra"
+
+    Wait-Cassandra
+
+    # --------------------------------------------------------
+    # 2. EXECUTION JOBS SPARK
+    # --------------------------------------------------------
+
+    Write-Host ""
+    Write-Host "[4/7] JOB 1 : VALIDATION"
+
     Run-SparkJob `
         "Validation" `
-        "/opt/spark/work-dir/project-src/streaming/integrated/job1_validation.py"
+        "job1_validation.py"
 
-    # JOB 2
+    Write-Host ""
+    Write-Host "[5/7] JOB 2 : DEDUPLICATION STATEFUL"
+
     Run-SparkJob `
         "Deduplication" `
-        "/opt/spark/work-dir/project-src/streaming/integrated/job2_deduplication.py"
+        "job2_deduplication.py"
 
-    # JOB 3
+    Write-Host ""
+    Write-Host "[6/7] JOB 3 : BUSINESS PROCESSING"
+
     Run-SparkJob `
         "Business Processing" `
-        "/opt/spark/work-dir/project-src/streaming/integrated/job3_business_processing.py"
+        "job3_business_processing.py"
 
     Write-Host ""
-    Write-Host "=================================="
+    Write-Host "[7/7] JOB 4 : CASSANDRA SINK"
+
+    Run-SparkJob `
+        "Cassandra Sink" `
+        "job4_cassandra_sink.py"
+
+    # --------------------------------------------------------
+    # 3. FIN
+    # --------------------------------------------------------
+
+    Write-Host ""
+    Write-Host "========================================"
     Write-Host "[OK] PIPELINE EXECUTE AVEC SUCCES"
-    Write-Host "=================================="
+    Write-Host "========================================"
+
 }
 catch {
+
     Write-Host ""
-    Write-Host "[ERROR] $($_.Exception.Message)"
+    Write-Host "========================================"
+    Write-Host "[ERROR] PIPELINE INTERROMPU"
+    Write-Host $_.Exception.Message
+    Write-Host "========================================"
+
     exit 1
 }
